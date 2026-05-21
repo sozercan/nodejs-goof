@@ -19,14 +19,26 @@ var fs = require('fs');
 // prototype-pollution
 var _ = require('lodash');
 
+var ALLOWED_REDIRECT_PAGES = new Set(['/admin']);
+
+function getAllowedRedirectPage(redirectPage) {
+  if (typeof redirectPage !== 'string') {
+    return null
+  }
+
+  return ALLOWED_REDIRECT_PAGES.has(redirectPage) ? redirectPage : null
+}
+
 function onLoginSuccessHook(redirectPage, session, username, res) {
   session.loggedIn = 1
 
   // Log the login action for audit
   console.log(`User logged in: ${username}`)
 
-  if (redirectPage) {
-      return res.redirect(redirectPage)
+  var safeRedirectPage = getAllowedRedirectPage(redirectPage)
+
+  if (safeRedirectPage) {
+      return res.redirect(safeRedirectPage)
   } else {
       return res.redirect('/admin')
   }
@@ -70,8 +82,10 @@ function adminLoginSuccess(redirectPage, session, username, res) {
   // Log the login action for audit
   console.log(`User logged in: ${username}`)
 
-  if (redirectPage) {
-      return res.redirect(redirectPage)
+  var safeRedirectPage = getAllowedRedirectPage(redirectPage)
+
+  if (safeRedirectPage) {
+      return res.redirect(safeRedirectPage)
   } else {
       return res.redirect('/admin')
   }
@@ -81,7 +95,7 @@ exports.login = function (req, res, next) {
   return res.render('admin', {
     title: 'Admin Access',
     granted: false,
-    redirectPage: req.query.redirectPage
+    redirectPage: getAllowedRedirectPage(req.query.redirectPage)
   });
 };
 
