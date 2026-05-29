@@ -1,5 +1,6 @@
 var utils = require('../utils');
 var mongoose = require('mongoose');
+var crypto = require('crypto');
 var Todo = mongoose.model('Todo');
 var User = mongoose.model('User');
 // TODO:
@@ -32,6 +33,29 @@ function onLoginSuccessHook(redirectPage, session, username, res) {
   }
 }
 
+var PASSWORD_HASH_PREFIX = 'sha256:';
+
+function hashPassword(password) {
+  return PASSWORD_HASH_PREFIX + crypto.createHash('sha256').update(password, 'utf8').digest('hex');
+}
+
+function isHashedPassword(password) {
+  return typeof password === 'string' &&
+    password.indexOf(PASSWORD_HASH_PREFIX) === 0 &&
+    /^[a-f0-9]{64}$/.test(password.slice(PASSWORD_HASH_PREFIX.length));
+}
+
+function passwordsMatch(password, storedPassword) {
+  if (!isHashedPassword(storedPassword)) {
+    return false;
+  }
+
+  return crypto.timingSafeEqual(
+    Buffer.from(hashPassword(password), 'utf8'),
+    Buffer.from(storedPassword, 'utf8')
+  );
+}
+
 exports.index = function (req, res, next) {
   Todo.
     find({}).
@@ -48,20 +72,24 @@ exports.index = function (req, res, next) {
 };
 
 exports.loginHandler = function (req, res, next) {
-  if (validator.isEmail(req.body.username)) {
-    User.find({ username: req.body.username, password: req.body.password }, function (err, users) {
-      if (users.length > 0) {
-        const redirectPage = req.body.redirectPage
-        const session = req.session
-        const username = req.body.username
-        return adminLoginSuccess(redirectPage, session, username, res)
-      } else {
-        return res.status(401).send()
-      }
-    });
-  } else {
+  var username = req.body && req.body.username;
+  var password = req.body && req.body.password;
+
+  if (typeof username !== 'string' || typeof password !== 'string' || !validator.isEmail(username)) {
     return res.status(401).send()
   }
+
+  User.findOne({ username: username }, function (err, user) {
+    if (err) return next(err);
+
+    if (user && passwordsMatch(password, user.password)) {
+      const redirectPage = req.body.redirectPage
+      const session = req.session
+      return adminLoginSuccess(redirectPage, session, username, res)
+    } else {
+      return res.status(401).send()
+    }
+  });
 };
 
 function adminLoginSuccess(redirectPage, session, username, res) {
