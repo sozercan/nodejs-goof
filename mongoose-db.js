@@ -40,7 +40,11 @@ if (mongoCFUri) {
   mongoUri = process.env.MONGODB_URI;
 }
 
-console.log("Using Mongo URI " + mongoUri);
+function redactMongoUri(uri) {
+  return uri.replace(/\/\/([^@/]+)@/, '//<redacted>@').replace(/\?.*$/, '?<redacted>');
+}
+
+console.log("Using Mongo URI " + redactMongoUri(mongoUri));
 
 mongoose.connect(mongoUri);
 
