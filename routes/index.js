@@ -310,11 +310,16 @@ exports.import = function (req, res, next) {
 
 exports.about_new = function (req, res, next) {
   console.log(JSON.stringify(req.query));
+  var device = req.query.device;
+  if (typeof device !== 'undefined' && typeof device !== 'string') {
+    return res.status(400).send('Invalid device');
+  }
   return res.render("about_new.dust",
     {
       title: 'Patch TODO List',
       subhead: 'Vulnerabilities at their best',
-      device: req.query.device
+      device: device,
+      isDesktop: device === 'Desktop'
     });
 };
 
