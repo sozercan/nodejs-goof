@@ -15,6 +15,7 @@ var validator = require('validator');
 var fileType = require('file-type');
 var AdmZip = require('adm-zip');
 var fs = require('fs');
+var path = require('path');
 
 // prototype-pollution
 var _ = require('lodash');
@@ -266,8 +267,26 @@ exports.import = function (req, res, next) {
   }
   if (importedFileType["mime"] === zipFileExt["mime"]) {
     var zip = AdmZip(importFile.data);
-    var extracted_path = "/tmp/extracted_files";
-    zip.extractAllTo(extracted_path, true);
+    var extracted_path = fs.realpathSync(fs.mkdtempSync('/tmp/extracted_files-'));
+    var entries = zip.getEntries();
+    entries.forEach(function (entry) {
+      var entryName = entry.entryName.replace(/\\/g, '/');
+      var destination = path.resolve(extracted_path, entryName);
+      var relativeDestination = path.relative(extracted_path, destination);
+      var attributes = entry.attr;
+      var isSymlink = typeof attributes === 'number' &&
+        (((attributes >>> 16) & 0xf000) === 0xa000);
+
+      if (path.posix.isAbsolute(entryName) || path.win32.isAbsolute(entryName) ||
+          entryName.split('/').indexOf('..') !== -1 || !relativeDestination ||
+          relativeDestination.indexOf('..' + path.sep) === 0 ||
+          path.isAbsolute(relativeDestination) || isSymlink) {
+        throw new Error('Invalid ZIP entry path');
+      }
+    });
+    entries.forEach(function (entry) {
+      zip.extractEntryTo(entry, extracted_path, true, false);
+    });
     data = "No backup.txt file found";
     fs.readFile('backup.txt', 'ascii', function (err, data) {
       if (!err) {
