@@ -16,9 +16,6 @@ var fileType = require('file-type');
 var AdmZip = require('adm-zip');
 var fs = require('fs');
 
-// prototype-pollution
-var _ = require('lodash');
-
 function onLoginSuccessHook(redirectPage, session, username, res) {
   session.loggedIn = 1
 
@@ -323,12 +320,11 @@ exports.about_new = function (req, res, next) {
 ///////////////////////////////////////////////////////////////////////////////
 // In order of simplicity we are not using any database. But you can write the
 // same logic using MongoDB.
-const users = [
-  // You know password for the user.
-  { name: 'user', password: 'pwd' },
+const users = Object.freeze([
+  { name: 'user', password: process.env.CHAT_USER_PASSWORD || Math.random().toString(32), role: 'user' },
   // You don't know password for the admin.
-  { name: 'admin', password: Math.random().toString(32), canDelete: true },
-];
+  { name: 'admin', password: Math.random().toString(32), role: 'admin' },
+].map(Object.freeze));
 
 let messages = [];
 let lastId = 1;
@@ -337,6 +333,27 @@ function findUser(auth) {
   return users.find((u) =>
     u.name === auth.name &&
     u.password === auth.password);
+}
+
+const dangerousMessageKeys = new Set(['__proto__', 'prototype', 'constructor']);
+const allowedMessageKeys = new Set(['icon', 'text']);
+
+function hasDangerousMessageKey(value) {
+  return value !== null && typeof value === 'object' && Object.keys(value).some((key) =>
+    dangerousMessageKeys.has(key) || hasDangerousMessageKey(value[key]));
+}
+
+function parseMessage(value) {
+  if (!value || Array.isArray(value) || Object.getPrototypeOf(value) !== Object.prototype ||
+      hasDangerousMessageKey(value) || Object.keys(value).some((key) =>
+        !allowedMessageKeys.has(key) || typeof value[key] !== 'string')) {
+    return null;
+  }
+
+  return {
+    icon: Object.prototype.hasOwnProperty.call(value, 'icon') ? value.icon : '👋',
+    ...(Object.prototype.hasOwnProperty.call(value, 'text') ? { text: value.text } : {}),
+  };
 }
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -352,16 +369,15 @@ exports.chat = {
       return;
     }
 
-    const message = {
-      // Default message icon. Cen be overwritten by user.
-      icon: '👋',
-    };
+    const message = parseMessage(req.body.message || {});
+    if (!message) {
+      res.status(400).send({ ok: false, error: 'Invalid message' });
+      return;
+    }
 
-    _.merge(message, req.body.message, {
-      id: lastId++,
-      timestamp: Date.now(),
-      userName: user.name,
-    });
+    message.id = lastId++;
+    message.timestamp = Date.now();
+    message.userName = user.name;
 
     messages.push(message);
     res.send({ ok: true });
@@ -369,7 +385,7 @@ exports.chat = {
   delete(req, res) {
     const user = findUser(req.body.auth || {});
 
-    if (!user || !user.canDelete) {
+    if (!user || user.role !== 'admin') {
       res.status(403).send({ ok: false, error: 'Access denied' });
       return;
     }
