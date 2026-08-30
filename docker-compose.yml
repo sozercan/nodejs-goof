@@ -1,10 +1,13 @@
-version: "2"
+version: "3.1"
 services:
   goof:
     build: .
     container_name: goof
     environment:
       - DOCKER=1
+      - MYSQL_HOST=good-mysql
+      - MYSQL_USER=goof
+      - MYSQL_PASSWORD_FILE=/run/secrets/mysql_password
     ports:
       - "3001:3001"
       - "9229:9229"
@@ -12,6 +15,12 @@ services:
       - goof-mongo
     depends_on:
       - goof-mongo
+      - good-mysql
+    secrets:
+      - mysql_password
+    networks:
+      - default
+      - database
   goof-mongo:
     container_name: goof-mongo
     image: mongo:3
@@ -21,7 +30,20 @@ services:
     container_name: goof-mysql
     image: mysql:5
     environment:
-      MYSQL_ROOT_PASSWORD: root
+      MYSQL_RANDOM_ROOT_PASSWORD: "yes"
       MYSQL_DATABASE: acme
-    ports:
-      - "3306:3306"
+      MYSQL_USER: goof
+      MYSQL_PASSWORD_FILE: /run/secrets/mysql_password
+    secrets:
+      - mysql_password
+    networks:
+      - database
+
+networks:
+  default:
+  database:
+    internal: true
+
+secrets:
+  mysql_password:
+    environment: MYSQL_PASSWORD
