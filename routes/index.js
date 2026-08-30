@@ -323,12 +323,18 @@ exports.about_new = function (req, res, next) {
 ///////////////////////////////////////////////////////////////////////////////
 // In order of simplicity we are not using any database. But you can write the
 // same logic using MongoDB.
-const users = [
-  // You know password for the user.
-  { name: 'user', password: 'pwd' },
-  // You don't know password for the admin.
-  { name: 'admin', password: Math.random().toString(32), canDelete: true },
-];
+const users = Object.freeze([
+  Object.freeze({
+    name: 'user',
+    password: process.env.CHAT_USER_PASSWORD || Math.random().toString(32),
+    role: 'user',
+  }),
+  Object.freeze({
+    name: 'admin',
+    password: process.env.CHAT_ADMIN_PASSWORD || Math.random().toString(32),
+    role: 'admin',
+  }),
+]);
 
 let messages = [];
 let lastId = 1;
@@ -337,6 +343,24 @@ function findUser(auth) {
   return users.find((u) =>
     u.name === auth.name &&
     u.password === auth.password);
+}
+
+function isSafePlainData(value) {
+  if (value === null || ['string', 'number', 'boolean'].includes(typeof value)) {
+    return true;
+  }
+
+  if (Array.isArray(value)) {
+    return value.every(isSafePlainData);
+  }
+
+  if (!_.isPlainObject(value)) {
+    return false;
+  }
+
+  return Object.keys(value).every((key) =>
+    !['__proto__', 'prototype', 'constructor'].includes(key) &&
+    isSafePlainData(value[key]));
 }
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -352,12 +376,17 @@ exports.chat = {
       return;
     }
 
+    if (!isSafePlainData(req.body.message)) {
+      res.status(400).send({ ok: false, error: 'Invalid message' });
+      return;
+    }
+
     const message = {
       // Default message icon. Cen be overwritten by user.
       icon: '👋',
     };
 
-    _.merge(message, req.body.message, {
+    Object.assign(message, req.body.message, {
       id: lastId++,
       timestamp: Date.now(),
       userName: user.name,
@@ -369,7 +398,7 @@ exports.chat = {
   delete(req, res) {
     const user = findUser(req.body.auth || {});
 
-    if (!user || !user.canDelete) {
+    if (!user || user.role !== 'admin') {
       res.status(403).send({ ok: false, error: 'Access denied' });
       return;
     }
