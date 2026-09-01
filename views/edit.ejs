@@ -24,9 +24,13 @@
     <% } %>
 
     <% if( todo._id == current ){ %>
-    <a class="del-btn-edit" href="/destroy/<%= todo._id %>" title="Delete this todo item">Delete</a>
+    <form class="delete-form" action="/destroy/<%= todo._id %>" method="post">
+      <button class="del-btn-edit" type="submit" title="Delete this todo item">Delete</button>
+    </form>
     <% }else{ %>
-    <a class="del-btn" href="/destroy/<%= todo._id %>" title="Delete this todo item">Delete</a>
+    <form class="delete-form" action="/destroy/<%= todo._id %>" method="post">
+      <button class="del-btn" type="submit" title="Delete this todo item">Delete</button>
+    </form>
     <% } %>
   </div>
 <% }); %>

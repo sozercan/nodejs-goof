@@ -89,6 +89,9 @@ body {
   color: transparent;
   width: 16px;
   height: 18px;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
 }
 
 /* line 28, ../sass/screen.sass */
@@ -168,8 +171,11 @@ body {
 }
 
 /* line 86, ../sass/screen.sass */
-.update-form {
+.update-form, .delete-form {
   display: inline;
+}
+
+.update-form {
   float: left;
 }
 

@@ -18,7 +18,9 @@ strong {font-weight: bold}
 <% todos.forEach( function ( todo ){ %>
   <div class="item">
     <a class="update-link" href="/edit/<%= todo._id %>" title="Update this todo item"><%- marked(new String(todo.content)) %></a>
-    <a class="del-btn" href="/destroy/<%= todo._id %>" title="Delete this todo item">Delete</a>
+    <form class="delete-form" action="/destroy/<%= todo._id %>" method="post">
+      <button class="del-btn" type="submit" title="Delete this todo item">Delete</button>
+    </form>
   </div>
 <% }); %>
 </div>
