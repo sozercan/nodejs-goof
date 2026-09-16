@@ -1,5 +1,6 @@
 var mongoose = require('mongoose');
 var cfenv = require("cfenv");
+var crypto = require('crypto');
 var Schema = mongoose.Schema;
 
 var Todo = new Schema({
@@ -45,14 +46,21 @@ console.log("Using Mongo URI " + mongoUri);
 mongoose.connect(mongoUri);
 
 User = mongoose.model('User');
-User.find({ username: 'admin@snyk.io' }).exec(function (err, users) {
-  console.log(users);
-  if (users.length === 0) {
-    console.log('no admin');
-    new User({ username: 'admin@snyk.io', password: 'SuperSecretPassword' }).save(function (err, user, count) {
-      if (err) {
-        console.log('error saving admin user');
-      }
-    });
-  }
-});
+if (process.env.GOOF_SEED_DEV_ADMIN === '1') {
+  User.find({ username: 'admin@snyk.io' }).exec(function (err, users) {
+    console.log(users);
+    if (users.length === 0) {
+      var adminPassword = crypto.randomBytes(24).toString('base64');
+      var salt = crypto.randomBytes(16).toString('hex');
+      var passwordHash = crypto.scryptSync(adminPassword, salt, 64).toString('hex');
+
+      console.log('no admin');
+      console.log('Created development admin admin@snyk.io with password: ' + adminPassword);
+      new User({ username: 'admin@snyk.io', password: 'scrypt$' + salt + '$' + passwordHash }).save(function (err, user, count) {
+        if (err) {
+          console.log('error saving admin user');
+        }
+      });
+    }
+  });
+}

@@ -1,5 +1,6 @@
 var utils = require('../utils');
 var mongoose = require('mongoose');
+var crypto = require('crypto');
 var Todo = mongoose.model('Todo');
 var User = mongoose.model('User');
 // TODO:
@@ -49,8 +50,11 @@ exports.index = function (req, res, next) {
 
 exports.loginHandler = function (req, res, next) {
   if (validator.isEmail(req.body.username)) {
-    User.find({ username: req.body.username, password: req.body.password }, function (err, users) {
-      if (users.length > 0) {
+    User.find({ username: req.body.username }, function (err, users) {
+      const user = users.find(function (user) {
+        return passwordMatches(req.body.password, user.password);
+      });
+      if (user) {
         const redirectPage = req.body.redirectPage
         const session = req.session
         const username = req.body.username
@@ -63,6 +67,23 @@ exports.loginHandler = function (req, res, next) {
     return res.status(401).send()
   }
 };
+
+function passwordMatches(password, storedPassword) {
+  if (typeof password !== 'string' || typeof storedPassword !== 'string') {
+    return false;
+  }
+
+  var parts = storedPassword.split('$');
+  if (parts.length === 3 && parts[0] === 'scrypt') {
+    var salt = parts[1];
+    var storedHash = Buffer.from(parts[2], 'hex');
+    var passwordHash = crypto.scryptSync(password, salt, storedHash.length);
+
+    return storedHash.length === passwordHash.length && crypto.timingSafeEqual(storedHash, passwordHash);
+  }
+
+  return storedPassword === password;
+}
 
 function adminLoginSuccess(redirectPage, session, username, res) {
   session.loggedIn = 1
