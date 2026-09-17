@@ -15,6 +15,7 @@ var validator = require('validator');
 var fileType = require('file-type');
 var AdmZip = require('adm-zip');
 var fs = require('fs');
+var path = require('path');
 
 // prototype-pollution
 var _ = require('lodash');
@@ -251,6 +252,12 @@ function isBlank(str) {
   return (!str || /^\s*$/.test(str));
 }
 
+function isSafeExtractPath(targetDir, entryName) {
+  var targetPath = path.resolve(targetDir, entryName);
+  var relativePath = path.relative(targetDir, targetPath);
+  return relativePath === '' || (!!relativePath && relativePath !== '..' && relativePath.indexOf('..' + path.sep) !== 0 && !path.isAbsolute(relativePath));
+}
+
 exports.import = function (req, res, next) {
   if (!req.files) {
     res.send('No files were uploaded.');
@@ -267,7 +274,16 @@ exports.import = function (req, res, next) {
   if (importedFileType["mime"] === zipFileExt["mime"]) {
     var zip = AdmZip(importFile.data);
     var extracted_path = "/tmp/extracted_files";
-    zip.extractAllTo(extracted_path, true);
+    var zipEntries = zip.getEntries();
+    for (var i = 0; i < zipEntries.length; i++) {
+      if (!isSafeExtractPath(extracted_path, zipEntries[i].entryName)) {
+        res.status(400).send('Invalid zip file.');
+        return;
+      }
+    }
+    zipEntries.forEach(function (entry) {
+      zip.extractEntryTo(entry, extracted_path, true, true);
+    });
     data = "No backup.txt file found";
     fs.readFile('backup.txt', 'ascii', function (err, data) {
       if (!err) {
